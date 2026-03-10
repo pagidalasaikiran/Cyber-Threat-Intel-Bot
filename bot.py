@@ -2,6 +2,7 @@ import os
 import feedparser
 import re
 import asyncio
+import sqlite3
 from datetime import datetime
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -29,7 +30,18 @@ NEWS_FEEDS = {
 CVE_FEED = "https://nvd.nist.gov/feeds/xml/cve/misc/nvd-rss.xml"
 
 
-sent_links = set()
+# SQLite Database Setup
+conn = sqlite3.connect("news.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS sent_links (
+    link TEXT PRIMARY KEY
+)
+""")
+
+conn.commit()
+
 
 stats = {
     "ransomware": 0,
@@ -37,6 +49,16 @@ stats = {
     "vulnerability": 0,
     "breach": 0
 }
+
+
+def link_exists(link):
+    cursor.execute("SELECT 1 FROM sent_links WHERE link=?", (link,))
+    return cursor.fetchone() is not None
+
+
+def save_link(link):
+    cursor.execute("INSERT OR IGNORE INTO sent_links VALUES (?)", (link,))
+    conn.commit()
 
 
 def clean_html(text):
@@ -194,9 +216,9 @@ async def send_news(app):
 
         for entry in feed.entries[:3]:
 
-            if entry.link not in sent_links:
+            if not link_exists(entry.link):
 
-                sent_links.add(entry.link)
+                save_link(entry.link)
 
                 summary = simple_summary(entry.summary)
 
@@ -239,9 +261,9 @@ async def send_cve_alerts(app):
 
     for entry in feed.entries[:3]:
 
-        if entry.link not in sent_links:
+        if not link_exists(entry.link):
 
-            sent_links.add(entry.link)
+            save_link(entry.link)
 
             message = f"""
 <b>NEW CVE ALERT</b>
