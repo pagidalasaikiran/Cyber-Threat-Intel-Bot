@@ -3,7 +3,9 @@ import feedparser
 import re
 import asyncio
 import sqlite3
+import threading
 from datetime import datetime
+from flask import Flask
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -30,7 +32,7 @@ NEWS_FEEDS = {
 CVE_FEED = "https://nvd.nist.gov/feeds/xml/cve/misc/nvd-rss.xml"
 
 
-# SQLite Database Setup
+# SQLite Database
 conn = sqlite3.connect("news.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -294,6 +296,19 @@ def check_cve(app):
     asyncio.run(send_cve_alerts(app))
 
 
+# Flask server for Render
+web_app = Flask(__name__)
+
+@web_app.route("/")
+def home():
+    return "Cyber Threat Intelligence Bot Running"
+
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
+
+
 def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -317,4 +332,7 @@ def main():
 
 
 if __name__ == "__main__":
+
+    threading.Thread(target=run_web).start()
+
     main()
